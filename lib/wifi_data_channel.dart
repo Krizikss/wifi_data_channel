@@ -25,6 +25,7 @@ class WifiDataChannel extends DataChannel {
     WiFiAccessPoint? accessPoint;
     while (accessPoint == null) {
       List<WiFiAccessPoint> results = await WiFiScan.instance.getScannedResults();
+      debugPrint("[WifiChannel] SSID to find : ${data.apIdentifier}");
       Iterable<WiFiAccessPoint> matching = results.where((element) => element.ssid == data.apIdentifier);
 
       if (matching.isNotEmpty) {
@@ -40,6 +41,7 @@ class WifiDataChannel extends DataChannel {
     bool connected = false;
     while (!connected) {
       debugPrint("[WifiChannel] Connecting to AP...");
+      debugPrint("[WifiChannel] ssid : ${data.apIdentifier}, password : ${data.password}");
       connected = await WiFiForIoTPlugin.findAndConnect(data.apIdentifier, password: data.password);
       await Future.delayed(const Duration(seconds: 1));
     }
@@ -49,6 +51,7 @@ class WifiDataChannel extends DataChannel {
     connected = false;
     while (!connected) {
       try {
+        debugPrint("[WifiChannel] address : ${data.address}");
         final socket = await Socket.connect(data.address, 62526);
         debugPrint('[WifiChannel] Client is connected to: ${socket.remoteAddress.address}:${socket.remotePort}');
         connected = true;
@@ -60,6 +63,8 @@ class WifiDataChannel extends DataChannel {
 
     throw UnimplementedError();
   }
+
+  @override
 
   @override
   Future<void> initSender(BootstrapChannel channel) async {
@@ -76,6 +81,7 @@ class WifiDataChannel extends DataChannel {
     debugPrint("[WifiChannel]     IP: $address");
     debugPrint("[WifiChannel]     SSID: $ssid");
     debugPrint("[WifiChannel]     Key: $key");
+
 
     final server = await ServerSocket.bind(address, 62526);
     server.listen((clientSocket) {
