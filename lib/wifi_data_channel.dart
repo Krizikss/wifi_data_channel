@@ -73,7 +73,8 @@ class WifiDataChannel extends DataChannel {
     }
     await WiFiForIoTPlugin.setWiFiAPEnabled(true);
 
-    String address = (await WiFiForIoTPlugin.getIP())!;
+    //String address = (await WiFiForIoTPlugin.getIP())!;
+    String address = "192.168.206.212";
     String ssid = (await WiFiForIoTPlugin.getWiFiAPSSID())!;
     String key = (await WiFiForIoTPlugin.getWiFiAPPreSharedKey())!;
 
@@ -86,17 +87,22 @@ class WifiDataChannel extends DataChannel {
     final server = await ServerSocket.bind(address, 62526);
     server.listen((clientSocket) {
       debugPrint('[WifiChannel] Connection from ${clientSocket.remoteAddress.address}:${clientSocket.remotePort}');
-      client = clientSocket;
+      /*client.listen((Uint8List data) async {
+        await Future.delayed(const Duration(seconds: 1));
+        final request = String.fromCharCodes(data);
+        if (request.isNotEmpty) {
+          debugPrint('Result : ${request}');
+        }*/
     });
 
     // Send socket information to client.
     await channel.sendChannelMetadata(ChannelMetadata(super.identifier, address, ssid, key));
 
     // Waiting for client connection.
-    while(client == null) {
+    /*while(client == null) {
       debugPrint("[WifiChannel] Waiting for client to connect...");
       await Future.delayed(const Duration(milliseconds: 500));
-    }
+    }*/
   }
 
   @override
