@@ -10,6 +10,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  network_info_plus: ^3.0.2
   venice_core:
     path: ../venice_core
   wifi_iot: ^0.3.17

@@ -10,6 +10,10 @@ import 'package:flutter/foundation.dart';
 import 'package:wifi_iot/wifi_iot.dart';
 import 'package:wifi_scan/wifi_scan.dart';
 
+import 'package:flutter/services.dart';
+
+
+
 
 class WifiDataChannel extends DataChannel {
   WifiDataChannel(super.identifier);
@@ -51,8 +55,9 @@ class WifiDataChannel extends DataChannel {
     connected = false;
     while (!connected) {
       try {
-        debugPrint("[WifiChannel] address : ${data.address}");
-        final socket = await Socket.connect(data.address, 62526);
+        //debugPrint("[WifiChannel] address : ${data.address}");
+        //final socket = await Socket.connect(data.address, 62526);
+        final socket = await Socket.connect("192.168.43.87", 62526);
         debugPrint('[WifiChannel] Client is connected to: ${socket.remoteAddress.address}:${socket.remotePort}');
         connected = true;
       } catch (err) {
@@ -61,7 +66,6 @@ class WifiDataChannel extends DataChannel {
       }
     }
 
-    throw UnimplementedError();
   }
 
   @override
@@ -73,8 +77,7 @@ class WifiDataChannel extends DataChannel {
     }
     await WiFiForIoTPlugin.setWiFiAPEnabled(true);
 
-    //String address = (await WiFiForIoTPlugin.getIP())!;
-    String address = "192.168.206.212";
+    String address = (await WiFiForIoTPlugin.getIP())!;
     String ssid = (await WiFiForIoTPlugin.getWiFiAPSSID())!;
     String key = (await WiFiForIoTPlugin.getWiFiAPPreSharedKey())!;
 
@@ -85,29 +88,32 @@ class WifiDataChannel extends DataChannel {
 
 
     final server = await ServerSocket.bind(address, 62526);
-    server.listen((clientSocket) {
-      debugPrint('[WifiChannel] Connection from ${clientSocket.remoteAddress.address}:${clientSocket.remotePort}');
-      /*client.listen((Uint8List data) async {
-        await Future.delayed(const Duration(seconds: 1));
-        final request = String.fromCharCodes(data);
-        if (request.isNotEmpty) {
-          debugPrint('Result : ${request}');
-        }*/
+    MethodChannel _channel = const MethodChannel('get_ip');
+    String ip = await _channel.invokeMethod('getIpAdress');
+    debugPrint("getWifiIP : ${ip}");
+    await channel.sendChannelMetadata(ChannelMetadata(super.identifier, ip, ssid, key));
+    var subscription = server.listen((clientSocket) {
+      debugPrint('Connection from ${clientSocket.remoteAddress.address}:${clientSocket.remotePort}');
+      client = clientSocket;
     });
-
-    // Send socket information to client.
-    await channel.sendChannelMetadata(ChannelMetadata(super.identifier, address, ssid, key));
-
-    // Waiting for client connection.
-    /*while(client == null) {
-      debugPrint("[WifiChannel] Waiting for client to connect...");
-      await Future.delayed(const Duration(milliseconds: 500));
-    }*/
+    await subscription.asFuture<void>();
   }
 
   @override
-  Future<void> sendChunk(FileChunk chunk) {
-    // TODO: implement sendChunk
-    throw UnimplementedError();
+  Future<void> sendChunk(FileChunk chunk) async {
+    while (client == null && chunk.data == null) {
+      if (client == null) {
+        debugPrint("[WifiChannel] Waiting for client to connect...");
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+      else if (chunk.data == null) {
+        debugPrint("[WifiChannel] Waiting for chunk to send...");
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+      else {
+        client!.write(chunk);
+        await Future.delayed(const Duration(seconds: 1));
+      }
+    }
   }
 }
