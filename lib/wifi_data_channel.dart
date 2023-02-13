@@ -43,25 +43,29 @@ class WifiDataChannel extends DataChannel {
     // Connection to access point.
     await WiFiForIoTPlugin.setEnabled(true, shouldOpenSettings: true);
     bool connected = false;
+    bool forceWifi = false;
     while (!connected) {
       debugPrint("[WifiChannel] Connecting to AP...");
       debugPrint("[WifiChannel] ssid : ${data.apIdentifier}, password : ${data.password}");
       connected = await WiFiForIoTPlugin.findAndConnect(data.apIdentifier, password: data.password);
+      forceWifi = await WiFiForIoTPlugin.forceWifiUsage(true);
       await Future.delayed(const Duration(seconds: 1));
     }
     debugPrint("[WifiChannel] Connected to AP.");
 
     // Opening data connection with host.
     connected = false;
+    final adr = await getIpAddress();
     while (!connected) {
       try {
-        //debugPrint("[WifiChannel] address : ${data.address}");
-        //final socket = await Socket.connect(data.address, 62526);
-        final socket = await Socket.connect("192.168.43.87", 62526);
+        debugPrint("[WifiChannel] Address to connect : ${data.address}");
+        //debugPrint("[WifiChannel] Address on the AP : ${adr}");
+        debugPrint("[WifiChannel] ForceWifi : ${forceWifi}");
+        final socket = await Socket.connect(data.address, 62526);
         debugPrint('[WifiChannel] Client is connected to: ${socket.remoteAddress.address}:${socket.remotePort}');
         connected = true;
       } catch (err) {
-        debugPrint("[WifiChannel] Failed to connect to host, retrying...");
+        debugPrint("[WifiChannel] $err");
         await Future.delayed(const Duration(seconds: 1));
       }
     }
@@ -77,26 +81,23 @@ class WifiDataChannel extends DataChannel {
     }
     await WiFiForIoTPlugin.setWiFiAPEnabled(true);
 
-    String address = (await WiFiForIoTPlugin.getIP())!;
     String ssid = (await WiFiForIoTPlugin.getWiFiAPSSID())!;
     String key = (await WiFiForIoTPlugin.getWiFiAPPreSharedKey())!;
 
     debugPrint("[WifiChannel] Sender successfully initialized.");
-    debugPrint("[WifiChannel]     IP: $address");
     debugPrint("[WifiChannel]     SSID: $ssid");
     debugPrint("[WifiChannel]     Key: $key");
 
-
-    final server = await ServerSocket.bind(address, 62526);
-    MethodChannel _channel = const MethodChannel('get_ip');
-    String ip = await _channel.invokeMethod('getIpAdress');
-    debugPrint("getWifiIP : ${ip}");
-    await channel.sendChannelMetadata(ChannelMetadata(super.identifier, ip, ssid, key));
+    final adr = await getIpAddress();
+    final server = await ServerSocket.bind(adr, 62526);
+    await channel.sendChannelMetadata(ChannelMetadata(super.identifier, adr, ssid, key));
+    debugPrint("[WifiChannel] Waiting for subscription ...");
     var subscription = server.listen((clientSocket) {
-      debugPrint('Connection from ${clientSocket.remoteAddress.address}:${clientSocket.remotePort}');
+      debugPrint('[WifiChannel] Connection from ${clientSocket.remoteAddress.address}:${clientSocket.remotePort}');
       client = clientSocket;
     });
     await subscription.asFuture<void>();
+    debugPrint("[WifiChannel] Subscription done.");
   }
 
   @override
@@ -115,5 +116,24 @@ class WifiDataChannel extends DataChannel {
         await Future.delayed(const Duration(seconds: 1));
       }
     }
+  }
+
+  Future<String> getIpAddress() async {
+    try{
+      var interfaces = await NetworkInterface.list();
+      for(var i in interfaces){
+        if(i.name == 'wlan0'){
+          for(var address in i.addresses){
+            if(address.type == InternetAddressType.IPv4){
+              debugPrint("[WiFiChannel] Address of the server socket : ${address.address}");
+              return address.address;
+            }
+          }
+        }
+      }
+    } catch(e){
+      return '[WifiChannel] Failed to get IP address : $e';
+    }
+    return '[WifiChannel] No IP address found';
   }
 }
