@@ -9,7 +9,7 @@ import 'package:venice_core/file/file_chunk.dart';
 import 'package:flutter/foundation.dart';
 import 'package:wifi_iot/wifi_iot.dart';
 import 'package:wifi_scan/wifi_scan.dart';
-
+import 'dart:async';
 import 'package:flutter/services.dart';
 
 
@@ -61,7 +61,7 @@ class WifiDataChannel extends DataChannel {
         final socket = await Socket.connect(data.address, 62526);
         debugPrint('[WifiChannel] Client is connected to: ${socket.remoteAddress.address}:${socket.remotePort}');
         connected = true;
-        //socket.close();
+        //socket.destroy();
       } catch (err) {
         debugPrint("[WifiChannel] $err");
         await Future.delayed(const Duration(seconds: 1));
@@ -90,16 +90,31 @@ class WifiDataChannel extends DataChannel {
 
       await channel.sendChannelMetadata(ChannelMetadata(super.identifier, address, ssid, key));
       debugPrint("[WifiChannel] Waiting for subscription ...");
-      var subscription = server.listen((clientSocket) {
-        debugPrint('[WifiChannel] Connection from ${clientSocket.remoteAddress.address}:${clientSocket.remotePort}');
-        client = clientSocket;
-      });
-      await subscription.asFuture<void>();
-      debugPrint("[WifiChannel] Subscription done.");
+      server.listen(handleClient);
+      await waitWhile(() => client == null);
+      debugPrint("[WifiChannel] Subscription finished.");
       //server.close();
       //await WiFiForIoTPlugin.setWiFiAPEnabled(false);
     }
+  }
 
+  Future waitWhile(bool test(), [Duration pollInterval = Duration.zero]) {
+    var completer = new Completer();
+    check() {
+      if (!test()) {
+        completer.complete();
+      } else {
+        new Timer(pollInterval, check);
+      }
+    }
+    check();
+    return completer.future;
+  }
+
+  void handleClient(Socket clientSocket) {
+    debugPrint('[WifiChannel] Connection from ${clientSocket.remoteAddress.address}:${clientSocket.remotePort}');
+    client = clientSocket;
+    //clientSocket.close();
   }
 
   @override
@@ -115,7 +130,7 @@ class WifiDataChannel extends DataChannel {
       }
       else {
         client!.write(chunk);
-        await Future.delayed(const Duration(seconds: 1));
+        await Future.delayed(const Duration(milliseconds: 500));
       }
     }
   }
