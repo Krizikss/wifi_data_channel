@@ -119,20 +119,22 @@ class WifiDataChannel extends DataChannel {
 
   @override
   Future<void> sendChunk(FileChunk chunk) async {
-    while (client == null && chunk.data == null) {
-      if (client == null) {
-        debugPrint("[WifiChannel] Waiting for client to connect...");
-        await Future.delayed(const Duration(milliseconds: 500));
-      }
-      else if (chunk.data == null) {
-        debugPrint("[WifiChannel] Waiting for chunk to send...");
-        await Future.delayed(const Duration(milliseconds: 500));
-      }
-      else {
-        client!.write(chunk);
-        await Future.delayed(const Duration(milliseconds: 500));
-      }
+    while (client != null && chunk.data != null) {
+      debugPrint("[WifiChannel] Chunk data to send : ${String.fromCharCodes(chunk.data)} to : ${client?.remoteAddress}");
+      client?.write(chunk);
+      await Future.delayed(const Duration(milliseconds: 500));
     }
+  }
+
+  @override
+  Future<void> receiveChunks(Socket socket, Map<int, FileChunk> chunks) async {
+    socket.listen((chunk) {
+      FileChunk newChunk = chunk as FileChunk;
+      print("[WifiChannel] newChunk : ${newChunk.identifier}, ${newChunk.data}");
+    }, onDone: () {
+      print("[WifiChannel] onDone()");
+      socket.destroy();
+    });
   }
 
   Future<String> getIpAddress() async {
