@@ -61,6 +61,7 @@ class WifiDataChannel extends DataChannel {
         final socket = await Socket.connect(data.address, 62526);
         debugPrint('[WifiChannel] Client is connected to: ${socket.remoteAddress.address}:${socket.remotePort}');
         connected = true;
+        client = socket;
         //socket.destroy();
       } catch (err) {
         debugPrint("[WifiChannel] $err");
@@ -120,22 +121,26 @@ class WifiDataChannel extends DataChannel {
   @override
   Future<void> sendChunk(FileChunk chunk) async {
     while (client != null && chunk.data != null) {
-      debugPrint("[WifiChannel] Chunk data to send : ${String.fromCharCodes(chunk.data)} to : ${client?.remoteAddress}");
-      client?.write(chunk);
-      await Future.delayed(const Duration(milliseconds: 500));
+      //debugPrint("[WifiChannel] Chunk data to send : ${chunk.toString()}");
+      client?.write(chunk.toString());
+      await Future.delayed(const Duration(seconds: 5));
     }
   }
 
   @override
-  Future<void> receiveChunks(Socket socket, Map<int, FileChunk> chunks) async {
-    socket.listen((chunk) {
-      FileChunk newChunk = chunk as FileChunk;
-      print("[WifiChannel] newChunk : ${newChunk.identifier}, ${newChunk.data}");
-    }, onDone: () {
-      print("[WifiChannel] onDone()");
-      socket.destroy();
-    });
+  Future<void> receiveChunks(Map<int, FileChunk> chunks) async {
+    if(client != null) {
+      client?.listen((event) {
+        String toString = String.fromCharCodes(event);
+        //debugPrint("[WifiChannel] toString : $toString");
+        List<String> splitted = toString.split(' ');
+        FileChunk newChunk = FileChunk(identifier: int.parse(splitted[0]), data: Uint8List.fromList(splitted[1].codeUnits));
+        //debugPrint("[WifiChannel] newChunk : ${newChunk.toString()}");
+        chunks.putIfAbsent(newChunk.identifier, () => newChunk);
+      });
+    }
   }
+
 
   Future<String> getIpAddress() async {
     String ipAddress = 'null';
