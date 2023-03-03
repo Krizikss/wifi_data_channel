@@ -29,7 +29,6 @@ class WifiDataChannel extends DataChannel {
     WiFiAccessPoint? accessPoint;
     while (accessPoint == null) {
       List<WiFiAccessPoint> results = await WiFiScan.instance.getScannedResults();
-      debugPrint("[WifiChannel] SSID to find : ${data.apIdentifier}");
       Iterable<WiFiAccessPoint> matching = results.where((element) => element.ssid == data.apIdentifier);
 
       if (matching.isNotEmpty) {
@@ -45,7 +44,6 @@ class WifiDataChannel extends DataChannel {
     bool connected = false;
     while (!connected) {
       debugPrint("[WifiChannel] Connecting to AP...");
-      debugPrint("[WifiChannel] ssid : ${data.apIdentifier}, password : ${data.password}");
       connected = await WiFiForIoTPlugin.findAndConnect(data.apIdentifier, password: data.password, withInternet: true);
       await Future.delayed(const Duration(seconds: 1));
     }
@@ -54,15 +52,12 @@ class WifiDataChannel extends DataChannel {
     // Opening data connection with host.
     connected = false;
     String address = await getIpAddress();
-    debugPrint("[WifiChannel] Address of the server : ${data.address}");
-    debugPrint("[WifiChannel] Address of the client : ${address}");
     while (!connected) {
       try {
         final socket = await Socket.connect(data.address, 62526);
         debugPrint('[WifiChannel] Client is connected to: ${socket.remoteAddress.address}:${socket.remotePort}');
         connected = true;
         client = socket;
-        //socket.destroy();
       } catch (err) {
         debugPrint("[WifiChannel] $err");
         await Future.delayed(const Duration(seconds: 1));
@@ -90,12 +85,8 @@ class WifiDataChannel extends DataChannel {
       final server = await ServerSocket.bind(address, 62526);
 
       await channel.sendChannelMetadata(ChannelMetadata(super.identifier, address, ssid, key));
-      debugPrint("[WifiChannel] Waiting for subscription ...");
       server.listen(handleClient);
       await waitWhile(() => client == null);
-      debugPrint("[WifiChannel] Subscription finished.");
-      //server.close();
-      //await WiFiForIoTPlugin.setWiFiAPEnabled(false);
     }
   }
 
@@ -115,13 +106,11 @@ class WifiDataChannel extends DataChannel {
   void handleClient(Socket clientSocket) {
     debugPrint('[WifiChannel] Connection from ${clientSocket.remoteAddress.address}:${clientSocket.remotePort}');
     client = clientSocket;
-    //clientSocket.close();
   }
 
   @override
   Future<void> sendChunk(FileChunk chunk) async {
     while (client != null && chunk.data != null) {
-      //debugPrint("[WifiChannel] Chunk data to send : ${chunk.toString()}");
       client?.write(chunk.toString());
       await Future.delayed(const Duration(seconds: 5));
     }
@@ -132,16 +121,15 @@ class WifiDataChannel extends DataChannel {
     if(client != null) {
       client?.listen((event) {
         String toString = String.fromCharCodes(event);
-        //debugPrint("[WifiChannel] toString : $toString");
         List<String> splitted = toString.split(' ');
         FileChunk newChunk = FileChunk(identifier: int.parse(splitted[0]), data: Uint8List.fromList(splitted[1].codeUnits));
-        //debugPrint("[WifiChannel] newChunk : ${newChunk.toString()}");
         chunks.putIfAbsent(newChunk.identifier, () => newChunk);
       });
+      //client.close();
     }
   }
 
-
+  //TODO: independent from interface name
   Future<String> getIpAddress() async {
     String ipAddress = 'null';
     while(ipAddress == 'null'){
